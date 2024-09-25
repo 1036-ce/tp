@@ -3,7 +3,6 @@
 #include <cassert>
 #include <rbtree_impl.hpp>
 
-
 namespace tp {
 template <typename T> struct node {
 	rbnode rbn{};

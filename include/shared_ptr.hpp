@@ -1,79 +1,103 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <new>     // placement new
-#include <utility> // std::is_same_v
+#include "shared_ptr_base.hpp"
 
-class deleter_base {
-};
-
-struct ctl_block {
-	using size_type = std::size_t;
-
-	explicit ctl_block(size_type _ref_cnt) : ref_cnt(_ref_cnt) {}
-
-	size_type ref_cnt{0};
-	deleter_base *deleter;
-};
-
-template <typename T> class shared_ptr {
+template <typename T> class shared_ptr : public shared_ptr_base<T> {
 public:
-	using element_type = T;
+	shared_ptr() : shared_ptr_base<T>() {}
 
-	shared_ptr() = default;
+	// copy ctor
+	shared_ptr(const shared_ptr &) = default;
 
-	shared_ptr(T *ptr) : elem(ptr), ctlb(new ctl_block(1)) {}
+	template <typename Y>
+	requires std::constructible_from<shared_ptr_base<T>,
+	                                 Y *> explicit shared_ptr(Y *ptr)
+	    : shared_ptr_base<T>(ptr) {}
 
-	template <typename Y> shared_ptr(Y *ptr);
+	template <typename Y, typename Deleter>
+	requires std::constructible_from<shared_ptr_base<T>, Y *, Deleter>
+	shared_ptr(Y *ptr, Deleter del) : shared_ptr_base<T>(ptr, del) {}
 
-	template <typename Y, typename Deleter> shared_ptr(Y *ptr, Deleter d);
+	template <typename Y, typename Deleter, typename Alloc>
+	requires std::constructible_from<shared_ptr_base<T>, Y *, Deleter, Alloc>
+	shared_ptr(Y *ptr, Deleter del, Alloc alloc)
+	    : shared_ptr_base<T>(ptr, del, alloc) {}
 
-	shared_ptr(const shared_ptr &other) {
-		elem = other.elem;
-		ctlb = other.ctlb;
-		if (ctlb)
-			++(ctlb->ref_cnt);
-	}
+	template <typename Y>
+	requires std::constructible_from < shared_ptr_base<T>,
+	const weak_ptr<Y> & > explicit shared_ptr(const weak_ptr<Y> &r)
+	    : shared_ptr_base<T>(r) {}
 
-	~shared_ptr() {
-		if (ctlb && --(ctlb->ref_cnt) == 0) {
-			delete elem;
-			delete ctlb;
-		}
-	}
 	shared_ptr &operator=(const shared_ptr &other) {
-		elem = other.elem;
-		ctlb = other.ctlb;
-		if (ctlb)
-			++(ctlb->ref_cnt);
+		shared_ptr_base<T>::operator=(other);
 		return *this;
 	}
 
-	void reset(T *_elem) {
-		elem = _elem;
-		if (ctlb && --(ctlb->ref_cnt) == 0) {
-			delete elem;
-			ctlb->ref_cnt = 1;
-		}
-		ctlb = new ctl_block(1);
-	}
-
-	void swap(shared_ptr &lhs);
-
-	element_type *get() const { return elem; }
-
-	element_type &operator*() const { return *elem; }
-
-	element_type *operator->() const { return elem; }
-
-	long use_count() const { return ctlb == nullptr ? 0 : ctlb->ref_cnt; }
-
-	// checks if the stored pointer is not null
-	explicit operator bool() const { return elem != nullptr; }
+	template <typename U, typename... Args>
+	friend shared_ptr<U> make_shared(Args &&...args);
 
 private:
-	element_type *elem{nullptr};
-	ctl_block *ctlb{nullptr};
+	template <typename Alloc, typename... Args>
+	shared_ptr(sp_alloc_shared_tag<Alloc> tag, Args &&...args)
+	    : shared_ptr_base<T>(tag, std::forward<Args>(args)...) {}
+};
+
+template <typename T, typename... Args>
+shared_ptr<T> make_shared(Args &&...args) {
+	using Alloc = std::allocator<void>;
+	Alloc alloc;
+	return shared_ptr<T>(sp_alloc_shared_tag<Alloc>{alloc},
+	                     std::forward<Args>(args)...);
+}
+
+template <typename T> class weak_ptr : public weak_ptr_base<T> {
+public:
+	weak_ptr() = default;
+
+	// clang-format off
+	template <typename Y>
+	requires std::constructible_from <weak_ptr_base<T>, const shared_ptr<Y>&> 
+	weak_ptr(const shared_ptr<Y> &r): weak_ptr_base<T>(r) {}
+	// clang-format on
+
+	weak_ptr(const weak_ptr &) = default;
+
+	shared_ptr<T> lock() const { return shared_ptr<T>(*this); }
+
+private:
+};
+
+template <typename T> class enable_shared_from_this {
+protected:
+	enable_shared_from_this() {}
+	enable_shared_from_this(const enable_shared_from_this &) {}
+	enable_shared_from_this &operator=(const enable_shared_from_this &) {
+		return *this;
+	}
+	~enable_shared_from_this() {}
+
+public:
+	shared_ptr<T> shared_from_this() { return shared_ptr<T>(weak_this); }
+
+	shared_ptr<const T> shared_from_this() const {
+		return shared_ptr<const T>(weak_this);
+	}
+
+	weak_ptr<T> weak_from_this() { return weak_this; }
+
+	weak_ptr<const T> weak_from_this() const { return weak_this; }
+
+private:
+	void weak_assign(T *p, const shared_count& cnt) const {
+		weak_this.assign(p, cnt);
+	}
+
+	friend const enable_shared_from_this *
+	enable_shared_from_this_base(const enable_shared_from_this *p) {
+		return p;
+	}
+
+	friend class shared_ptr_base<T>;
+
+	mutable weak_ptr<T> weak_this;
 };
