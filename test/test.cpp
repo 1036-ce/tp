@@ -3,6 +3,8 @@
 #include "test_map.hpp"
 #include "test_rbtree.hpp"
 #include "test_unique_ptr.hpp"
+#include "test_array.hpp"
+#include "test_vector.hpp"
 
 int main(int argc, char **argv) {
 	testing::InitGoogleTest(&argc, argv);

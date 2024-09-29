@@ -1,7 +1,8 @@
 #pragma once
 
-#include "gtest/gtest.h"
 #include <memory>
+
+#include <iterator.hpp>
 
 template <typename T>
 concept is_iterator = requires(T a, T b) {
@@ -21,14 +22,14 @@ public:
 	using pointer         = std::allocator_traits<Alloc>::pointer;
 	using const_pointer   = std::allocator_traits<Alloc>::const_pointer;
 
-	class iterator;
-	class const_iterator;
-	class reverse_iterator;
-	class const_reverse_iterator;
-	// using iterator =
-	// using const_iterator =
-	// using reverse_iterator =
-	// using const_reverse_iterator =
+	/* class iterator;
+	 * class const_iterator;
+	 * class reverse_iterator;
+	 * class const_reverse_iterator; */
+	using iterator = tp::normal_iterator<pointer, vector>;
+	using const_iterator = tp::normal_iterator<const_pointer, vector>;
+	using reverse_iterator = tp::reverse_iterator<iterator>;
+	using const_reverse_iterator = tp::reverse_iterator<const_iterator>;
 
 	vector() : alloc{}, sz(0), cap(0), _data(nullptr) {}
 
@@ -381,278 +382,278 @@ private:
 	T *_data;
 };
 
-template <typename T, typename Alloc> class vector<T, Alloc>::iterator {
-public:
-	iterator() : ptr(nullptr) {}
-
-	iterator(T *p) : ptr(p) {}
-
-	iterator(const iterator &other) : ptr(other.ptr) {}
-	iterator(iterator &&other) : ptr(other.ptr) {}
-
-	iterator &operator=(const iterator &other) {
-		ptr = other.ptr;
-		return *this;
-	}
-
-	iterator &operator=(iterator &&other) {
-		ptr = other.ptr;
-		return *this;
-	}
-
-	auto operator<=>(const iterator &other) const = default;
-
-	iterator &operator++() {
-		ptr += 1;
-		return *this;
-	}
-
-	iterator operator++(int) {
-		iterator ret = *this;
-		ptr += 1;
-		return ret;
-	}
-
-	iterator &operator--() {
-		ptr -= 1;
-		return *this;
-	}
-
-	iterator operator--(int) {
-		iterator ret = *this;
-		ptr -= 1;
-		return ret;
-	}
-
-	friend iterator operator+(iterator it, int cnt) {
-		return iterator(it.ptr + cnt);
-	}
-
-	friend iterator operator+(int cnt, iterator it) {
-		return iterator(it.ptr + cnt);
-	}
-
-	friend iterator operator-(iterator it, int cnt) {
-		return iterator(it.ptr - cnt);
-	}
-
-	friend difference_type operator-(iterator &lhs, iterator &rhs) {
-		return lhs.ptr - rhs.ptr;
-	}
-
-	reference operator*() { return *ptr; }
-
-	pointer operator->() { return ptr; }
-
-private:
-	T *ptr;
-};
-
-template <typename T, typename Alloc> class vector<T, Alloc>::const_iterator {
-public:
-	const_iterator() : ptr(nullptr) {}
-
-	const_iterator(T *p) : ptr(p) {}
-	const_iterator(const T *p) : ptr(p) {}
-
-	const_iterator &operator=(const const_iterator &other) {
-		ptr = other.ptr;
-		return *this;
-	}
-
-	const_iterator &operator=(const_iterator &&other) {
-		ptr = other.ptr;
-		return *this;
-	}
-
-	auto operator<=>(const const_iterator &other) const = default;
-
-	const_iterator &operator++() {
-		ptr += 1;
-		return *this;
-	}
-
-	const_iterator operator++(int) {
-		const_iterator ret = *this;
-		ptr += 1;
-		return ret;
-	}
-
-	const_iterator &operator--() {
-		ptr -= 1;
-		return *this;
-	}
-
-	const_iterator operator--(int) {
-		const_iterator ret = *this;
-		ptr -= 1;
-		return ret;
-	}
-
-	friend const_iterator operator+(const_iterator it, int cnt) {
-		return const_iterator(it.ptr + cnt);
-	}
-
-	friend const_iterator operator+(int cnt, const_iterator it) {
-		return const_iterator(it.ptr + cnt);
-	}
-
-	friend const_iterator operator-(const_iterator it, int cnt) {
-		return const_iterator(it.ptr - cnt);
-	}
-
-	friend difference_type operator-(const const_iterator &lhs,
-	                                 const const_iterator &rhs) {
-		return lhs.ptr - rhs.ptr;
-	}
-
-	const_reference operator*() { return *ptr; }
-
-	const_pointer operator->() { return ptr; }
-
-private:
-	const T *ptr;
-};
-
-template <typename T, typename Alloc> class vector<T, Alloc>::reverse_iterator {
-public:
-	reverse_iterator() : it(nullptr) {}
-
-	reverse_iterator(T *p) : it(p) {}
-
-	reverse_iterator &operator=(const reverse_iterator &other) {
-		it = other.it;
-		return *this;
-	}
-
-	reverse_iterator &operator=(reverse_iterator &&other) {
-		it = other.it;
-		return *this;
-	}
-
-	auto operator<=>(const reverse_iterator &other) const = default;
-
-	reverse_iterator &operator++() {
-		--it;
-		return *this;
-	}
-
-	reverse_iterator operator++(int) {
-		reverse_iterator ret = *this;
-		--(*this);
-		return ret;
-	}
-
-	reverse_iterator &operator--() {
-		++it;
-		return *this;
-	}
-
-	reverse_iterator operator--(int) {
-		reverse_iterator ret = *this;
-		++(*this);
-		return ret;
-	}
-
-	friend reverse_iterator operator+(reverse_iterator &rit, int cnt) {
-		rit.it = rit.it - cnt;
-		return rit;
-	}
-
-	friend reverse_iterator operator+(int cnt, reverse_iterator &rit) {
-		rit.it = rit.it - cnt;
-		return rit;
-	}
-
-	friend reverse_iterator operator-(reverse_iterator &rit, int cnt) {
-		rit.it = rit.it + cnt;
-		return rit;
-	}
-
-	friend difference_type operator-(reverse_iterator &lhs,
-	                                 reverse_iterator &rhs) {
-		return -(lhs.it - rhs.it);
-	}
-
-	reference operator*() { return *it; }
-
-	pointer operator->() { return it; }
-
-private:
-	iterator it;
-};
-
-template <typename T, typename Alloc>
-class vector<T, Alloc>::const_reverse_iterator {
-public:
-	const_reverse_iterator() : it(nullptr) {}
-
-	const_reverse_iterator(T *p) : it(p) {}
-
-	const_reverse_iterator &operator=(const const_reverse_iterator &other) {
-		it = other.it;
-		return *this;
-	}
-
-	const_reverse_iterator &operator=(const_reverse_iterator &&other) {
-		it = other.it;
-		return *this;
-	}
-
-	auto operator<=>(const const_reverse_iterator &other) const = default;
-
-	const_reverse_iterator &operator++() {
-		--it;
-		return *this;
-	}
-
-	const_reverse_iterator operator++(int) {
-		const_reverse_iterator ret = *this;
-		--(*this);
-		return ret;
-	}
-
-	const_reverse_iterator &operator--() {
-		++it;
-		return *this;
-	}
-
-	const_reverse_iterator operator--(int) {
-		const_reverse_iterator ret = *this;
-		++(*this);
-		return ret;
-	}
-
-	friend const_reverse_iterator operator+(const_reverse_iterator &rit,
-	                                        int cnt) {
-		rit.it = rit.it - cnt;
-		return rit;
-	}
-
-	friend const_reverse_iterator operator+(int cnt,
-	                                        const_reverse_iterator &rit) {
-		rit.it = rit.it - cnt;
-		return rit;
-	}
-
-	friend const_reverse_iterator operator-(const_reverse_iterator &rit,
-	                                        int cnt) {
-		rit.it = rit.it + cnt;
-		return rit;
-	}
-
-	friend difference_type operator-(const_reverse_iterator &lhs,
-	                                 const_reverse_iterator &rhs) {
-		return -(lhs.it - rhs.it);
-	}
-
-	const_reference operator*() { return *it; }
-
-	const_pointer operator->() { return it; }
-
-private:
-	const_iterator it;
-};
+/* template <typename T, typename Alloc> class vector<T, Alloc>::iterator {
+ * public:
+ *     iterator() : ptr(nullptr) {}
+ * 
+ *     iterator(T *p) : ptr(p) {}
+ * 
+ *     iterator(const iterator &other) : ptr(other.ptr) {}
+ *     iterator(iterator &&other) : ptr(other.ptr) {}
+ * 
+ *     iterator &operator=(const iterator &other) {
+ *         ptr = other.ptr;
+ *         return *this;
+ *     }
+ * 
+ *     iterator &operator=(iterator &&other) {
+ *         ptr = other.ptr;
+ *         return *this;
+ *     }
+ * 
+ *     auto operator<=>(const iterator &other) const = default;
+ * 
+ *     iterator &operator++() {
+ *         ptr += 1;
+ *         return *this;
+ *     }
+ * 
+ *     iterator operator++(int) {
+ *         iterator ret = *this;
+ *         ptr += 1;
+ *         return ret;
+ *     }
+ * 
+ *     iterator &operator--() {
+ *         ptr -= 1;
+ *         return *this;
+ *     }
+ * 
+ *     iterator operator--(int) {
+ *         iterator ret = *this;
+ *         ptr -= 1;
+ *         return ret;
+ *     }
+ * 
+ *     friend iterator operator+(iterator it, int cnt) {
+ *         return iterator(it.ptr + cnt);
+ *     }
+ * 
+ *     friend iterator operator+(int cnt, iterator it) {
+ *         return iterator(it.ptr + cnt);
+ *     }
+ * 
+ *     friend iterator operator-(iterator it, int cnt) {
+ *         return iterator(it.ptr - cnt);
+ *     }
+ * 
+ *     friend difference_type operator-(iterator &lhs, iterator &rhs) {
+ *         return lhs.ptr - rhs.ptr;
+ *     }
+ * 
+ *     reference operator*() { return *ptr; }
+ * 
+ *     pointer operator->() { return ptr; }
+ * 
+ * private:
+ *     T *ptr;
+ * };
+ * 
+ * template <typename T, typename Alloc> class vector<T, Alloc>::const_iterator {
+ * public:
+ *     const_iterator() : ptr(nullptr) {}
+ * 
+ *     const_iterator(T *p) : ptr(p) {}
+ *     const_iterator(const T *p) : ptr(p) {}
+ * 
+ *     const_iterator &operator=(const const_iterator &other) {
+ *         ptr = other.ptr;
+ *         return *this;
+ *     }
+ * 
+ *     const_iterator &operator=(const_iterator &&other) {
+ *         ptr = other.ptr;
+ *         return *this;
+ *     }
+ * 
+ *     auto operator<=>(const const_iterator &other) const = default;
+ * 
+ *     const_iterator &operator++() {
+ *         ptr += 1;
+ *         return *this;
+ *     }
+ * 
+ *     const_iterator operator++(int) {
+ *         const_iterator ret = *this;
+ *         ptr += 1;
+ *         return ret;
+ *     }
+ * 
+ *     const_iterator &operator--() {
+ *         ptr -= 1;
+ *         return *this;
+ *     }
+ * 
+ *     const_iterator operator--(int) {
+ *         const_iterator ret = *this;
+ *         ptr -= 1;
+ *         return ret;
+ *     }
+ * 
+ *     friend const_iterator operator+(const_iterator it, int cnt) {
+ *         return const_iterator(it.ptr + cnt);
+ *     }
+ * 
+ *     friend const_iterator operator+(int cnt, const_iterator it) {
+ *         return const_iterator(it.ptr + cnt);
+ *     }
+ * 
+ *     friend const_iterator operator-(const_iterator it, int cnt) {
+ *         return const_iterator(it.ptr - cnt);
+ *     }
+ * 
+ *     friend difference_type operator-(const const_iterator &lhs,
+ *                                      const const_iterator &rhs) {
+ *         return lhs.ptr - rhs.ptr;
+ *     }
+ * 
+ *     const_reference operator*() { return *ptr; }
+ * 
+ *     const_pointer operator->() { return ptr; }
+ * 
+ * private:
+ *     const T *ptr;
+ * };
+ * 
+ * template <typename T, typename Alloc> class vector<T, Alloc>::reverse_iterator {
+ * public:
+ *     reverse_iterator() : it(nullptr) {}
+ * 
+ *     reverse_iterator(T *p) : it(p) {}
+ * 
+ *     reverse_iterator &operator=(const reverse_iterator &other) {
+ *         it = other.it;
+ *         return *this;
+ *     }
+ * 
+ *     reverse_iterator &operator=(reverse_iterator &&other) {
+ *         it = other.it;
+ *         return *this;
+ *     }
+ * 
+ *     auto operator<=>(const reverse_iterator &other) const = default;
+ * 
+ *     reverse_iterator &operator++() {
+ *         --it;
+ *         return *this;
+ *     }
+ * 
+ *     reverse_iterator operator++(int) {
+ *         reverse_iterator ret = *this;
+ *         --(*this);
+ *         return ret;
+ *     }
+ * 
+ *     reverse_iterator &operator--() {
+ *         ++it;
+ *         return *this;
+ *     }
+ * 
+ *     reverse_iterator operator--(int) {
+ *         reverse_iterator ret = *this;
+ *         ++(*this);
+ *         return ret;
+ *     }
+ * 
+ *     friend reverse_iterator operator+(reverse_iterator &rit, int cnt) {
+ *         rit.it = rit.it - cnt;
+ *         return rit;
+ *     }
+ * 
+ *     friend reverse_iterator operator+(int cnt, reverse_iterator &rit) {
+ *         rit.it = rit.it - cnt;
+ *         return rit;
+ *     }
+ * 
+ *     friend reverse_iterator operator-(reverse_iterator &rit, int cnt) {
+ *         rit.it = rit.it + cnt;
+ *         return rit;
+ *     }
+ * 
+ *     friend difference_type operator-(reverse_iterator &lhs,
+ *                                      reverse_iterator &rhs) {
+ *         return -(lhs.it - rhs.it);
+ *     }
+ * 
+ *     reference operator*() { return *it; }
+ * 
+ *     pointer operator->() { return it; }
+ * 
+ * private:
+ *     iterator it;
+ * };
+ * 
+ * template <typename T, typename Alloc>
+ * class vector<T, Alloc>::const_reverse_iterator {
+ * public:
+ *     const_reverse_iterator() : it(nullptr) {}
+ * 
+ *     const_reverse_iterator(T *p) : it(p) {}
+ * 
+ *     const_reverse_iterator &operator=(const const_reverse_iterator &other) {
+ *         it = other.it;
+ *         return *this;
+ *     }
+ * 
+ *     const_reverse_iterator &operator=(const_reverse_iterator &&other) {
+ *         it = other.it;
+ *         return *this;
+ *     }
+ * 
+ *     auto operator<=>(const const_reverse_iterator &other) const = default;
+ * 
+ *     const_reverse_iterator &operator++() {
+ *         --it;
+ *         return *this;
+ *     }
+ * 
+ *     const_reverse_iterator operator++(int) {
+ *         const_reverse_iterator ret = *this;
+ *         --(*this);
+ *         return ret;
+ *     }
+ * 
+ *     const_reverse_iterator &operator--() {
+ *         ++it;
+ *         return *this;
+ *     }
+ * 
+ *     const_reverse_iterator operator--(int) {
+ *         const_reverse_iterator ret = *this;
+ *         ++(*this);
+ *         return ret;
+ *     }
+ * 
+ *     friend const_reverse_iterator operator+(const_reverse_iterator &rit,
+ *                                             int cnt) {
+ *         rit.it = rit.it - cnt;
+ *         return rit;
+ *     }
+ * 
+ *     friend const_reverse_iterator operator+(int cnt,
+ *                                             const_reverse_iterator &rit) {
+ *         rit.it = rit.it - cnt;
+ *         return rit;
+ *     }
+ * 
+ *     friend const_reverse_iterator operator-(const_reverse_iterator &rit,
+ *                                             int cnt) {
+ *         rit.it = rit.it + cnt;
+ *         return rit;
+ *     }
+ * 
+ *     friend difference_type operator-(const_reverse_iterator &lhs,
+ *                                      const_reverse_iterator &rhs) {
+ *         return -(lhs.it - rhs.it);
+ *     }
+ * 
+ *     const_reference operator*() { return *it; }
+ * 
+ *     const_pointer operator->() { return it; }
+ * 
+ * private:
+ *     const_iterator it;
+ * }; */
 
 template <typename T, typename Alloc>
 typename vector<T, Alloc>::iterator
@@ -782,7 +783,7 @@ vector<T, Alloc>::erase(vector<T, Alloc>::const_iterator pos) {
 	size_type offset = pos - cbegin();
 
 	T *src = _data + offset + 1;
-	T *dst = src + offset;
+	T *dst = _data + offset;
 
 	std::allocator_traits<Alloc>::destroy(alloc, dst);
 

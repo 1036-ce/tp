@@ -3,3 +3,4 @@ build/
 docs/
 debug.sh
 .gdbinit
+todo.md
