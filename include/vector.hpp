@@ -4,12 +4,6 @@
 
 #include <iterator.hpp>
 
-template <typename T>
-concept is_iterator = requires(T a, T b) {
-	*a;
-	a - b;
-	++a;
-};
 
 template <typename T, typename Alloc = std::allocator<T>> class vector {
 public:

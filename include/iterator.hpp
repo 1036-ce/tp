@@ -4,6 +4,13 @@
 
 namespace tp{
 
+template <typename T>
+concept is_iterator = requires(T a, T b) {
+	*a;
+	a - b;
+	++a;
+};
+
 template <typename Iterator, typename Container> class normal_iterator {
 	using traits_type = std::iterator_traits<Iterator>;
 
