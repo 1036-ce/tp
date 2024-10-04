@@ -26,7 +26,9 @@ private:
 	template <typename _Ptr, typename _T>
 	using ptr_rebind = typename std::pointer_traits<_Ptr>::template rebind<_T>;
 	template <typename CvTp>
-	using iter = deque_iterator<T, Ref, ptr_rebind<Ptr, T>>;
+	using iter = deque_iterator<T, CvTp &, ptr_rebind<Ptr, CvTp>>;
+	/* template <typename CvTp>
+	 * using iter = deque_iterator<T, Ref, ptr_rebind<Ptr, T>>; */
 
 public:
 	using iterator       = iter<T>;
@@ -391,7 +393,7 @@ public:
 
 	deque(size_type count, const T &value, const Alloc &alloc = Alloc())
 	    : base(alloc, count) {
-		fill(value);
+		initialize(impl.start, impl.finish, value);
 	}
 
 	template <typename InputIt>
@@ -440,6 +442,11 @@ public:
 			T_alloc_traits::construct(impl, dst.operator->(), *src);
 			++src, ++dst;
 		}
+	}
+
+	// TODO
+	~deque() {
+		// std::cout << "~deque is not complete" << std::endl;
 	}
 
 	reference at(size_type pos) {
@@ -499,6 +506,116 @@ public:
 		impl.finish = impl.start;
 	}
 
+	iterator insert(const_iterator pos, const T &value) {
+		if (pos.cur == impl.start.cur) {
+			push_front(value);
+			return impl.start;
+		} else if (pos.cur == impl.finish.cur) {
+			push_back(value);
+			iterator tmp = impl.finish;
+			return --tmp;
+		} else {
+			return insert_aux(pos, value);
+		}
+	}
+
+	iterator insert(const_iterator pos, T &&value) {
+		if (pos.cur == impl.start.cur) {
+			push_front(std::move(value));
+			return impl.start;
+		} else if (pos.cur == impl.finish.cur) {
+			push_back(std::move(value));
+			iterator tmp = impl.finish;
+			return --tmp;
+		} else {
+			return insert_aux(pos, value);
+		}
+	}
+
+	iterator insert(const_iterator pos, size_type count, const T &value) {
+		if (pos.cur == impl.start.cur) {
+			reserve_elems_at_front(count);
+			iterator new_start = impl.start - count;
+			initialize(new_start, impl.start, value);
+			impl.start = new_start;
+			return new_start;
+		} else if (pos.cur == impl.finish.cur) {
+			reserve_elems_at_back(count);
+			iterator old_finish = impl.finish;
+			impl.finish         = old_finish + count;
+			initialize(old_finish, impl.finish, value);
+			return old_finish;
+		} else {
+			return insert_aux(pos, count, value);
+		}
+	}
+
+	template <typename InputIt>
+	requires tp::is_iterator<InputIt>
+	    iterator insert(const_iterator pos, InputIt first, InputIt last) {
+		size_type count = static_cast<size_type>(last - first);
+		if (pos.cur == impl.start.cur) {
+			reserve_elems_at_front(count);
+			iterator new_start = impl.start - count;
+			initialize_copy(first, last, new_start);
+			impl.start = new_start;
+			return new_start;
+		} else if (pos.cur == impl.finish.cur) {
+			reserve_elems_at_back(count);
+			iterator old_finish = impl.finish;
+			impl.finish         = old_finish + count;
+			initialize_copy(first, last, old_finish);
+			return old_finish;
+		} else {
+			return insert_aux(pos, first, last);
+		}
+	}
+
+	iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
+		return insert(pos, ilist.begin(), ilist.end());
+	}
+
+	iterator erase(const_iterator pos) {
+		if (pos.cur == impl.start.cur) {
+			T_alloc_traits::destroy(impl, pos.cur);
+			++impl.start;
+			return impl.start;
+		}
+		else if (pos + 1 == impl.finish) {
+			T_alloc_traits::destroy(impl, pos.cur);
+			--impl.finish;
+			return impl.finish;
+		}
+		else if (pos == impl.finish) {
+			return impl.finish;
+		}
+		else {
+			return erase_aux(pos);
+		}
+	}
+
+	iterator erase(const_iterator first, const_iterator last) {
+		if (first == last)
+			return last;
+		else if (first == begin() && last == end()) {
+			clear();
+			return end();
+		}
+		if (first.cur == impl.start.cur) {
+			destroy_elems(first, last);
+			impl.start = last;
+			return impl.start;
+		}
+		else if (last.cur == impl.finish.cur) {
+			destroy_elems(first, last);
+			impl.finish = first;
+			return impl.finish;
+		}
+		else {
+			return erase_aux(first, last);
+		}
+	}
+
 	void push_back(const T &value) {
 		if (impl.finish.cur < impl.finish.last - 1) {
 			T_alloc_traits::construct(impl, impl.finish.operator->(), value);
@@ -510,20 +627,35 @@ public:
 
 	void push_back(T &&value) {
 		if (impl.finish.cur < impl.finish.last - 1) {
-			T_alloc_traits::construct(impl, impl.finish.cur,
-			                          std::move(value));
+			T_alloc_traits::construct(impl, impl.finish.cur, std::move(value));
 			++impl.finish.cur;
 		} else {
 			push_back_aux(value);
 		}
 	}
 
+	void pop_back() {
+		--impl.finish;
+		T_alloc_traits::destroy(impl, impl.finish.cur);
+	}
+
+	template <typename... Args> reference emplace_back(Args &&...args) {
+		if (impl.finish.cur < impl.finish.last - 1) {
+			T_alloc_traits::construct(impl, impl.finish.cur,
+			                          std::forward<Args>(args)...);
+
+			++impl.finish.cur;
+		} else {
+			push_back_aux(std::forward<Args>(args)...);
+		}
+		return *(impl.finish.cur - 1);
+	}
+
 	void push_front(const T &value) {
 		if (impl.start.cur > impl.start.first) {
 			--impl.start.cur;
 			T_alloc_traits::construct(impl, impl.start.cur, value);
-		}
-		else {
+		} else {
 			push_front_aux(value);
 		}
 	}
@@ -532,16 +664,39 @@ public:
 		if (impl.start.cur > impl.start.first) {
 			--impl.start.cur;
 			T_alloc_traits::construct(impl, impl.start.cur, std::move(value));
-		}
-		else {
+		} else {
 			push_front_aux(value);
 		}
+	}
+
+	void pop_front() {
+		T_alloc_traits::destroy(impl, impl.start.cur);
+		++impl.start;
+	}
+
+	template <typename... Args> reference emplace_front(Args &&...args) {
+		if (impl.start.cur > impl.start.first) {
+			--impl.start.cur;
+			T_alloc_traits::construct(impl, impl.start.cur,
+			                          std::forward<Args>(args)...);
+		} else {
+			push_front_aux(std::forward<Args>(args)...);
+		}
+		return *(impl.start.cur);
 	}
 
 private:
 	void fill(const T &value) {
 		for (iterator it = impl.start; it != impl.finish; ++it)
 			T_alloc_traits::construct(impl, it.operator->(), value);
+	}
+
+	void fill(const_iterator first, const_iterator last, const T &value) {
+		auto it = first;
+		while (it != last) {
+			*it = value;
+			++it;
+		}
 	}
 
 	void destroy_elem(iterator &pos) {
@@ -578,6 +733,34 @@ private:
 		impl.finish.cur = impl.finish.first + finish_offset;
 	}
 
+	void reserve_elems_at_front(size_type n) {
+		size_type free_elems_cnt = impl.start.cur - impl.start.first;
+		if (free_elems_cnt < n)
+			new_elems_at_front(n - free_elems_cnt);
+	}
+
+	void new_elems_at_front(size_type n) {
+		const size_type new_nodes = (n + buffer_size() - 1) / buffer_size();
+		reserve_map_at_front(new_nodes);
+
+		for (size_type i = 1; i <= new_nodes; ++i)
+			*(impl.start.node - i) = allocate_node();
+	}
+
+	void reserve_elems_at_back(size_type n) {
+		size_type free_elems_cnt = impl.finish.last - impl.finish.cur;
+		if (free_elems_cnt < n)
+			new_elems_at_back(n - free_elems_cnt);
+	}
+
+	void new_elems_at_back(size_type n) {
+		const size_type new_nodes = (n + buffer_size() - 1) / buffer_size();
+		reserve_map_at_back(new_nodes);
+
+		for (size_type i = 1; i <= new_nodes; ++i)
+			*(impl.finish.node + i) = allocate_node();
+	}
+
 	size_type free_node_cnt_at_front() {
 		return size_type(impl.start.node - impl.map);
 	}
@@ -612,6 +795,251 @@ private:
 		impl.start.set_node(impl.start.node - 1);
 		impl.start.cur = impl.start.last - 1;
 
-		T_alloc_traits::construct(impl, impl.start.cur, std::forward<Args>(args)...);
+		T_alloc_traits::construct(impl, impl.start.cur,
+		                          std::forward<Args>(args)...);
 	}
+
+	template <typename... Args>
+	iterator insert_aux(const_iterator pos, Args &&...args) {
+		value_type value(std::forward<Args>(args)...);
+		difference_type index = pos - impl.start;
+
+		if (static_cast<size_type>(index) * 2 < size()) {
+			push_front(std::move(front()));
+
+			iterator front1 = impl.start;
+			++front1;
+			iterator front2 = front1;
+			++front2;
+			pos = impl.start +
+			      index; // because iterator maybe invalid after push_front
+			iterator pos1 = pos;
+			++pos1;
+			transform(front2, pos1, front1);
+		} else {
+			push_back(std::move(back()));
+			iterator back1 = impl.finish;
+			--back1;
+			iterator back2 = back1;
+			--back2;
+			pos = impl.start + index;
+
+			transform_backward(pos, back2, back1);
+		}
+		*pos = std::move(value);
+		return pos;
+	}
+
+	iterator insert_aux(const_iterator pos, size_type count, const T &value) {
+		size_type elems_before = pos - impl.start;
+		size_type length       = size();
+
+		if (elems_before * 2 < length) {
+			reserve_elems_at_front(count);
+			iterator new_start = impl.start - count;
+			iterator old_start = impl.start;
+			pos                = impl.start + elems_before;
+			initialize_move(old_start, pos, new_start);
+			initialize(new_start + elems_before, pos, value);
+			impl.start = new_start;
+		} else {
+			reserve_elems_at_back(count);
+			iterator new_finish = impl.finish + count;
+			iterator old_finish = impl.finish;
+			pos                 = impl.start + elems_before;
+			initialize_move_backward(pos, old_finish, new_finish);
+			initialize(pos, pos + count, value);
+			impl.finish = new_finish;
+		}
+		return impl.start + elems_before;
+	}
+
+	template <typename InputIt>
+	requires tp::is_iterator<InputIt>
+	    iterator insert_aux(const_iterator pos, InputIt first, InputIt last) {
+		size_type elems_before = pos - impl.start;
+		size_type length       = size();
+		size_type count        = last - first;
+
+		if (elems_before * 2 < length) {
+			reserve_elems_at_front(count);
+			iterator new_start = impl.start - count;
+			iterator old_start = impl.start;
+			pos                = impl.start + elems_before;
+			initialize_move(old_start, pos, new_start);
+			initialize_copy(first, last, new_start + elems_before);
+			impl.start = new_start;
+		} else {
+			reserve_elems_at_back(count);
+			iterator new_finish = impl.finish + count;
+			iterator old_finish = impl.finish;
+			pos                 = impl.start + elems_before;
+			initialize_move_backward(pos, old_finish, new_finish);
+			initialize_copy(first, last, pos);
+			impl.finish = new_finish;
+		}
+		return impl.start + elems_before;
+	}
+
+	iterator erase_aux(const_iterator pos) {
+		size_type elems_before = static_cast<size_type>(pos - impl.start);
+		size_type length = size();
+		T_alloc_traits::destroy(impl, pos.cur);
+		if (elems_before * 2 < length) {
+			iterator ret = pos;
+			++ret;
+			transform_backward(impl.start, pos, ret);
+			++impl.start;
+			return ret;
+		}
+		else {
+			iterator tmp = pos;
+			++tmp;
+			transform(tmp, impl.finish, pos);
+			--impl.finish;
+			return pos;
+		}  
+	}
+
+	iterator erase_aux(const_iterator first, const_iterator last) {
+		size_type count = static_cast<size_type>(last - first);
+		size_type elems_before = first - impl.start;
+
+		if (elems_before * 2 < (size() - count) ) {
+			destroy_elems(first, last);
+			transform_backward(impl.start, first, last);
+			impl.start = impl.start + count;
+			return last;
+		}
+		else {
+			destroy_elems(first, last);
+			transform(last, impl.finish, first);
+			impl.finish = impl.finish - count;
+			return (last - count);
+		}
+	}
+
+	void transform(iterator src_first, iterator src_last,
+	               iterator dest_first) {
+		auto it = src_first;
+		while (it != src_last) {
+			*dest_first = std::move(*it);
+			++it, ++dest_first;
+		}
+	}
+
+	void transform_backward(iterator src_first, iterator src_last,
+	                        iterator dest_last) {
+		auto it = src_last;
+		--it, --dest_last;
+
+		while (it >= src_first) {
+			*dest_last = std::move(*it);
+			--it, --dest_last;
+		}
+	}
+
+	template <typename InputIt, typename... Args>
+	requires tp::is_iterator<InputIt>
+	void initialize(InputIt first, InputIt last, Args &&...args) {
+		auto it = first;
+		while (it != last) {
+			T_alloc_traits::construct(impl, it.cur,
+			                          std::forward<Args>(args)...);
+			++it;
+		}
+	}
+
+	template <typename InputItL, typename InputItR>
+	requires tp::is_iterator<InputItL> && tp::is_iterator<InputItR>
+	void initialize_copy(InputItL src_first, InputItL src_last,
+	                     InputItR dest_first) {
+		auto it = src_first;
+		while (it != src_last) {
+			T_alloc_traits::construct(impl, dest_first.cur, *it);
+			++it, ++dest_first;
+		}
+	}
+
+	template <typename InputItL, typename InputItR>
+	requires tp::is_iterator<InputItL> && tp::is_iterator<InputItR>
+	void initialize_copy_backward(InputItL src_first,
+	                              InputItL src_last, InputItR dest_last) {
+		auto it = src_last;
+		--it, --dest_last;
+		while (it >= src_first) {
+			T_alloc_traits::construct(impl, dest_last.cur, *it);
+			--it, --dest_last;
+		}
+	}
+
+	template <typename InputItL, typename InputItR>
+	requires tp::is_iterator<InputItL> && tp::is_iterator<InputItR>
+	void initialize_move(InputItL src_first, InputItL src_last,
+	                     InputItR dest_first) {
+		auto it = src_first;
+		while (it != src_last) {
+			T_alloc_traits::construct(impl, dest_first.cur, std::move(*it));
+			// *dest_first = std::move(*it);
+			++it, ++dest_first;
+		}
+	}
+
+	template <typename InputItL, typename InputItR>
+	requires tp::is_iterator<InputItL> && tp::is_iterator<InputItR>
+	void initialize_move_backward(InputItL src_first,
+	                              InputItL src_last, InputItR dest_last) {
+		auto it = src_last;
+		--it, --dest_last;
+		while (it >= src_first) {
+			T_alloc_traits::construct(impl, dest_last.cur, std::move(*it));
+			--it, --dest_last;
+		}
+	}
+
+	/*     template <typename... Args>
+	 *     void initialize(const_iterator first, const_iterator last, Args
+	 * &&...args) { iterator it = first; while (it != last) {
+	 *             T_alloc_traits::construct(impl, it.cur,
+	 *                                       std::forward<Args>(args)...);
+	 *             ++it;
+	 *         }
+	 *     }
+	 *
+	 *     void initialize_copy(const_iterator src_first, const_iterator
+	 * src_last, iterator dest_first) { iterator it = src_first; while (it !=
+	 * src_last) { T_alloc_traits::construct(impl, dest_first.cur, *it);
+	 *             ++it, ++dest_first;
+	 *         }
+	 *     }
+	 *
+	 *     void initialize_copy_backward(const_iterator src_first,
+	 *                                   const_iterator src_last, iterator
+	 * dest_last) { iterator it = src_last;
+	 *         --it, --dest_last;
+	 *         while (it >= src_first) {
+	 *             T_alloc_traits::construct(impl, dest_last.cur, *it);
+	 *             --it, --dest_last;
+	 *         }
+	 *     }
+	 *
+	 *     void initialize_move(const_iterator src_first, const_iterator
+	 * src_last, iterator dest_first) { iterator it = src_first; while (it !=
+	 * src_last) { T_alloc_traits::construct(impl, dest_first.cur,
+	 * std::move(*it));
+	 *             // *dest_first = std::move(*it);
+	 *             ++it, ++dest_first;
+	 *         }
+	 *     }
+	 *
+	 *     void initialize_move_backward(const_iterator src_first,
+	 *                                   const_iterator src_last, iterator
+	 * dest_last) { iterator it = src_last;
+	 *         --it, --dest_last;
+	 *         while (it >= src_first) {
+	 *             T_alloc_traits::construct(impl, dest_last.cur,
+	 * std::move(*it));
+	 *             --it, --dest_last;
+	 *         }
+	 *     } */
 };
