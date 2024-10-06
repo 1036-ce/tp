@@ -13,14 +13,8 @@ struct Data {
 };
 
 int main() {
-	deque<int> dq{1,2,3,4,5};
-    auto it = dq.erase(dq.begin() + 2, dq.begin() + 3);
-	std::cout << *it << std::endl;
-	std::cout << "=====================" << std::endl;
-
-	it = dq.begin();
-	while (it != dq.end()) {
-		std::cout << *it << std::endl;
-		++it;
-    } 
+	deque<int> dq{1,2,3,4};
+	auto it1 = dq.rend();
+	auto it2 = dq.rbegin();
+	std::cout << (it1 - it2) << std::endl;
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gtest/gtest.h"
 #include <iostream>
 #include <iterator.hpp>
 #include <memory>
@@ -208,8 +209,9 @@ protected:
 
 	using allocator_type = Alloc;
 
-	// TODO
-	allocator_type get_allocator() const {}
+	allocator_type get_allocator() const {
+		return allocator_type(get_T_allocator());
+	}
 
 	using iterator       = deque_iterator<T, T &, Ptr>::iterator;
 	using const_iterator = deque_iterator<T, const T &, CPtr>::iterator;
@@ -425,7 +427,7 @@ public:
 		iterator src = other.begin();
 		iterator dst = begin();
 		while (src != other.end()) {
-			T_alloc_traits::construct(impl, dst.operator->(), *src);
+			T_alloc_traits::construct(impl, dst.cur, *src);
 			++src, ++dst;
 		}
 	}
@@ -444,9 +446,113 @@ public:
 		}
 	}
 
-	// TODO
+	deque &operator=(const deque &other) {
+		using pocca = T_alloc_traits::propagate_on_container_copy_assignment;
+		if (std::addressof(other) != this) {
+			if (pocca::value) {
+				clear();
+				deallocate_node(impl.start.first);
+
+				get_T_allocator() = other.get_T_allocator();
+
+				init_map(other.size());
+
+				initialize_copy(other.begin(), other.end(), begin());
+
+				return *this;
+			}
+			get_T_allocator() = other.get_T_allocator();
+			size_type len     = size();
+			if (len > other.size()) {
+				erase_at_end(std::copy(other.begin(), other.end(), begin()));
+			} else {
+				auto mid = other.begin() + len;
+				std::copy(other.begin(), mid, begin());
+				insert_aux(end(), mid, other.end());
+			}
+		}
+		return *this;
+	}
+
+	deque &operator=(deque &&other) {
+		using pocma = T_alloc_traits::propagate_on_container_move_assignment;
+		if (std::addressof(other) != this) {
+			if (!pocma::value && get_T_allocator() != other.get_T_allocator()) {
+				size_type len = size();
+				if (len > other.size()) {
+					erase_at_end(
+					    std::move(other.begin(), other.end(), begin()));
+				} else {
+					auto mid = other.begin() + len;
+					std::move(other.begin(), mid, begin());
+
+					reserve_elems_at_back(other.size() - len);
+					initialize_move(mid, other.end(), end());
+				}
+			} else {
+				impl.swap_data(other.impl);
+				get_T_allocator() = other.get_T_allocator();
+			}
+		}
+		other.clear();
+		return *this;
+	}
+
+	deque &operator=(std::initializer_list<T> ilist) {
+		size_type len = size();
+		if (len > ilist.size()) {
+			erase_at_end(std::copy(ilist.begin(), ilist.end(), begin()));
+		} else {
+			auto mid = ilist.begin() + len;
+			std::copy(ilist.begin(), mid, begin());
+			insert_aux(end(), mid, ilist.end());
+		}
+		return *this;
+	}
+
+	void assign(size_type count, const T &value) {
+		size_type len = size();
+		if (len > count) {
+			auto new_end = begin() + count;
+			fill(begin(), new_end, value);
+			erase_at_end(new_end);
+		} else {
+			fill(begin(), end(), value);
+			insert_aux(end(), count - len, value);
+		}
+	}
+
+	template <typename InputIt>
+	requires tp::is_iterator<InputIt>
+	void assign(InputIt first, InputIt last) {
+		size_type len   = size();
+		size_type count = last - first;
+		if (len > count) {
+			erase_at_end(std::copy(first, last, begin()));
+		} else {
+			auto mid = first + len;
+			std::copy(first, mid, begin());
+			insert_aux(end(), mid, last);
+		}
+	}
+
+	void assign(std::initializer_list<T> ilist) {
+		size_type len = size();
+		if (len > ilist.size()) {
+			erase_at_end(std::copy(ilist.begin(), ilist.end(), begin()));
+		} else {
+			auto mid = ilist.begin() + len;
+			std::copy(ilist.begin(), mid, begin());
+			insert_aux(end(), mid, ilist.end());
+		}
+	}
+
+	allocator_type get_allocator() const { return base::get_allocator(); }
+
 	~deque() {
-		// std::cout << "~deque is not complete" << std::endl;
+		clear();
+		deallocate_node(impl.start.first);
+		deallocate_map(impl.map, impl.map_size);
 	}
 
 	reference at(size_type pos) {
@@ -497,14 +603,15 @@ public:
 
 	const_reverse_iterator crend() const { return impl.start - 1; }
 
-	bool empty() { return size() == 0; }
+	bool empty() const { return size() == 0; }
 
-	size_type size() { return end() - begin(); }
+	size_type size() const { return end() - begin(); }
 
-	void clear() {
-		destroy_elems(begin(), end());
-		impl.finish = impl.start;
+	void shrink_to_fit() {
+		// do nothing
 	}
+
+	void clear() { erase_at_end(begin()); }
 
 	iterator insert(const_iterator pos, const T &value) {
 		if (pos.cur == impl.start.cur) {
@@ -575,23 +682,35 @@ public:
 		return insert(pos, ilist.begin(), ilist.end());
 	}
 
-	iterator erase(const_iterator pos) {
+	template <typename... Args>
+	iterator emplace(const_iterator pos, Args &&...args) {
 		if (pos.cur == impl.start.cur) {
-			T_alloc_traits::destroy(impl, pos.cur);
-			++impl.start;
+			emplace_front(std::forward<Args>(args)...);
 			return impl.start;
+		} else if (pos.cur == impl.finish.cur) {
+			emplace_back(std::forward<Args>(args)...);
+			iterator ret = impl.finish - 1;
+			return ret;
+		} else {
+			return insert_aux(pos, std::forward<Args>(args)...);
 		}
-		else if (pos + 1 == impl.finish) {
-			T_alloc_traits::destroy(impl, pos.cur);
-			--impl.finish;
-			return impl.finish;
+	}
+
+	iterator erase(const_iterator pos) {
+		size_type index  = static_cast<size_type>(pos - begin());
+		size_type length = size();
+		iterator next    = pos;
+		++next;
+		if (index * 2 < length) {
+			if (index != 0)
+				transform_backward(impl.start, pos, next);
+			pop_front();
+		} else {
+			if (index != length - 1)
+				transform(next, impl.finish, pos);
+			pop_back();
 		}
-		else if (pos == impl.finish) {
-			return impl.finish;
-		}
-		else {
-			return erase_aux(pos);
-		}
+		return begin() + index;
 	}
 
 	iterator erase(const_iterator first, const_iterator last) {
@@ -600,19 +719,18 @@ public:
 		else if (first == begin() && last == end()) {
 			clear();
 			return end();
-		}
-		if (first.cur == impl.start.cur) {
-			destroy_elems(first, last);
-			impl.start = last;
-			return impl.start;
-		}
-		else if (last.cur == impl.finish.cur) {
-			destroy_elems(first, last);
-			impl.finish = first;
-			return impl.finish;
-		}
-		else {
-			return erase_aux(first, last);
+		} else {
+			size_type count        = static_cast<size_type>(last - first);
+			size_type elems_before = first - impl.start;
+
+			if (elems_before * 2 < (size() - count)) {
+				transform_backward(impl.start, first, last);
+				erase_at_begin(impl.start + count);
+			} else {
+				transform(last, impl.finish, first);
+				erase_at_end(impl.finish - count);
+			}
+			return impl.start + elems_before;
 		}
 	}
 
@@ -635,8 +753,15 @@ public:
 	}
 
 	void pop_back() {
-		--impl.finish;
-		T_alloc_traits::destroy(impl, impl.finish.cur);
+		if (impl.finish.cur != impl.finish.first) {
+			--impl.finish;
+			T_alloc_traits::destroy(impl, impl.finish.cur);
+		} else {
+			deallocate_node(impl.finish.first);
+			impl.finish.set_node(impl.finish.node - 1);
+			impl.finish.cur = impl.finish.last;
+			T_alloc_traits::destroy(impl, impl.finish.first);
+		}
 	}
 
 	template <typename... Args> reference emplace_back(Args &&...args) {
@@ -670,8 +795,15 @@ public:
 	}
 
 	void pop_front() {
-		T_alloc_traits::destroy(impl, impl.start.cur);
-		++impl.start;
+		if (impl.start.cur != impl.start.last - 1) {
+			T_alloc_traits::destroy(impl, impl.start.cur);
+			++impl.start;
+		} else {
+			T_alloc_traits::destroy(impl, impl.start.cur);
+			deallocate_node(impl.start.first);
+			impl.start.set_node(impl.start.node + 1);
+			impl.start.cur = impl.start.first;
+		}
 	}
 
 	template <typename... Args> reference emplace_front(Args &&...args) {
@@ -683,6 +815,39 @@ public:
 			push_front_aux(std::forward<Args>(args)...);
 		}
 		return *(impl.start.cur);
+	}
+
+	void resize(size_type count) {
+		size_type length = size();
+		if (count == length)
+			return;
+		if (count > length)
+			insert(end(), count - length, value_type());
+		else
+			erase(begin() + count, end());
+	}
+
+	void resize(size_type count, const value_type &value) {
+		size_type length = size();
+		if (count == length)
+			return;
+		if (count > length)
+			insert(end(), count - length, value);
+		else
+			erase(begin() + count, end());
+	}
+
+	void swap(deque &other) {
+		using pocs = T_alloc_traits::propagate_on_container_swap;
+
+		assert(pocs::value || get_T_allocator() == other.get_T_allocator());
+
+		impl.swap_data(other.impl);
+
+		if (pocs::value) {
+			using std::swap;
+			swap(get_T_allocator(), other.get_T_allocator());
+		}
 	}
 
 private:
@@ -881,46 +1046,46 @@ private:
 		return impl.start + elems_before;
 	}
 
-	iterator erase_aux(const_iterator pos) {
-		size_type elems_before = static_cast<size_type>(pos - impl.start);
-		size_type length = size();
-		T_alloc_traits::destroy(impl, pos.cur);
+	template <typename InputIt>
+	requires tp::is_iterator<InputIt>
+	    iterator assign_aux(const_iterator pos, InputIt first, InputIt last) {
+		size_type elems_before = pos - impl.start;
+		size_type length       = size();
+		size_type count        = last - first;
+
 		if (elems_before * 2 < length) {
-			iterator ret = pos;
-			++ret;
-			transform_backward(impl.start, pos, ret);
-			++impl.start;
-			return ret;
+			reserve_elems_at_front(count);
+			iterator new_start = impl.start - count;
+			iterator old_start = impl.start;
+			pos                = impl.start + elems_before;
+			initialize_move(old_start, pos, new_start);
+			initialize_move(first, last, new_start + elems_before);
+			impl.start = new_start;
+		} else {
+			reserve_elems_at_back(count);
+			iterator new_finish = impl.finish + count;
+			iterator old_finish = impl.finish;
+			pos                 = impl.start + elems_before;
+			initialize_move_backward(pos, old_finish, new_finish);
+			initialize_move(first, last, pos);
+			impl.finish = new_finish;
 		}
-		else {
-			iterator tmp = pos;
-			++tmp;
-			transform(tmp, impl.finish, pos);
-			--impl.finish;
-			return pos;
-		}  
+		return impl.start + elems_before;
 	}
 
-	iterator erase_aux(const_iterator first, const_iterator last) {
-		size_type count = static_cast<size_type>(last - first);
-		size_type elems_before = first - impl.start;
-
-		if (elems_before * 2 < (size() - count) ) {
-			destroy_elems(first, last);
-			transform_backward(impl.start, first, last);
-			impl.start = impl.start + count;
-			return last;
-		}
-		else {
-			destroy_elems(first, last);
-			transform(last, impl.finish, first);
-			impl.finish = impl.finish - count;
-			return (last - count);
-		}
+	void erase_at_begin(iterator pos) {
+		destroy_elems(begin(), pos);
+		destroy_nodes(impl.start.node, pos.node);
+		impl.start = pos;
 	}
 
-	void transform(iterator src_first, iterator src_last,
-	               iterator dest_first) {
+	void erase_at_end(iterator pos) {
+		destroy_elems(pos, end());
+		destroy_nodes(pos.node + 1, impl.finish.node + 1);
+		impl.finish = pos;
+	}
+
+	void transform(iterator src_first, iterator src_last, iterator dest_first) {
 		auto it = src_first;
 		while (it != src_last) {
 			*dest_first = std::move(*it);
@@ -963,8 +1128,8 @@ private:
 
 	template <typename InputItL, typename InputItR>
 	requires tp::is_iterator<InputItL> && tp::is_iterator<InputItR>
-	void initialize_copy_backward(InputItL src_first,
-	                              InputItL src_last, InputItR dest_last) {
+	void initialize_copy_backward(InputItL src_first, InputItL src_last,
+	                              InputItR dest_last) {
 		auto it = src_last;
 		--it, --dest_last;
 		while (it >= src_first) {
@@ -987,8 +1152,8 @@ private:
 
 	template <typename InputItL, typename InputItR>
 	requires tp::is_iterator<InputItL> && tp::is_iterator<InputItR>
-	void initialize_move_backward(InputItL src_first,
-	                              InputItL src_last, InputItR dest_last) {
+	void initialize_move_backward(InputItL src_first, InputItL src_last,
+	                              InputItR dest_last) {
 		auto it = src_last;
 		--it, --dest_last;
 		while (it >= src_first) {
@@ -997,49 +1162,14 @@ private:
 		}
 	}
 
-	/*     template <typename... Args>
-	 *     void initialize(const_iterator first, const_iterator last, Args
-	 * &&...args) { iterator it = first; while (it != last) {
-	 *             T_alloc_traits::construct(impl, it.cur,
-	 *                                       std::forward<Args>(args)...);
-	 *             ++it;
-	 *         }
-	 *     }
-	 *
-	 *     void initialize_copy(const_iterator src_first, const_iterator
-	 * src_last, iterator dest_first) { iterator it = src_first; while (it !=
-	 * src_last) { T_alloc_traits::construct(impl, dest_first.cur, *it);
-	 *             ++it, ++dest_first;
-	 *         }
-	 *     }
-	 *
-	 *     void initialize_copy_backward(const_iterator src_first,
-	 *                                   const_iterator src_last, iterator
-	 * dest_last) { iterator it = src_last;
-	 *         --it, --dest_last;
-	 *         while (it >= src_first) {
-	 *             T_alloc_traits::construct(impl, dest_last.cur, *it);
-	 *             --it, --dest_last;
-	 *         }
-	 *     }
-	 *
-	 *     void initialize_move(const_iterator src_first, const_iterator
-	 * src_last, iterator dest_first) { iterator it = src_first; while (it !=
-	 * src_last) { T_alloc_traits::construct(impl, dest_first.cur,
-	 * std::move(*it));
-	 *             // *dest_first = std::move(*it);
-	 *             ++it, ++dest_first;
-	 *         }
-	 *     }
-	 *
-	 *     void initialize_move_backward(const_iterator src_first,
-	 *                                   const_iterator src_last, iterator
-	 * dest_last) { iterator it = src_last;
-	 *         --it, --dest_last;
-	 *         while (it >= src_first) {
-	 *             T_alloc_traits::construct(impl, dest_last.cur,
-	 * std::move(*it));
-	 *             --it, --dest_last;
-	 *         }
-	 *     } */
+	template <typename... Args> void replace_map(Args &&...args) {
+		deque new_deque(std::forward<Args>(args)...);
+		clear();
+		deallocate_node(*impl.start.node);
+		deallocate_map(impl.map, impl.map_size);
+
+		impl.map      = nullptr;
+		impl.map_size = 0;
+		impl.swap_data(new_deque.impl);
+	}
 };

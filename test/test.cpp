@@ -5,6 +5,7 @@
 #include "test_unique_ptr.hpp"
 #include "test_array.hpp"
 #include "test_vector.hpp"
+#include "test_deque.hpp"
 
 int main(int argc, char **argv) {
 	testing::InitGoogleTest(&argc, argv);
