@@ -1,23 +1,25 @@
-#include <cinttypes>
 #include <deque.hpp>
+// #include <deque>
 #include <gtest/gtest.h>
 
-class deque_test : public testing::Test {
-protected:
-	// virtual void SetUp() will be called before each test is run.  You
-	// should define it if you need to initialize the varaibles.
-	// Otherwise, this can be skipped.
-	virtual void SetUp() {}
+/* class deque_test : public testing::Test {
+ * protected:
+ *     // virtual void SetUp() will be called before each test is run.  You
+ *     // should define it if you need to initialize the varaibles.
+ *     // Otherwise, this can be skipped.
+ *     virtual void SetUp() {}
+ * 
+ *     // virtual void TearDown() will be called after each test is run.
+ *     // You should define it if there is cleanup work to do.  Otherwise,
+ *     // you don't have to provide it.
+ *     //
+ *     virtual void TearDown() {
+ *     }
+ * 
+ *     deque<int> dq;
+ * }; */
 
-	// virtual void TearDown() will be called after each test is run.
-	// You should define it if there is cleanup work to do.  Otherwise,
-	// you don't have to provide it.
-	//
-	virtual void TearDown() {
-	}
-
-	deque<int> dq;
-};
+// using std::deque;
 
 TEST(deque, ctor_1) {
 	deque<int> dq;
@@ -72,6 +74,7 @@ TEST(deque, initializer_list_ctor) {
 	}
 }
 
+// copy operator=
 TEST(deque, operator_equal_1) {
 	deque<int> dq{1,2,3,4,5};
 	deque<int> tmp;
@@ -83,16 +86,21 @@ TEST(deque, operator_equal_1) {
 	}
 }
 
+// move operator=
 TEST(deque, operator_equal_2) {
 	std::initializer_list<int> il{1,2,3,4,5};
 	deque<int> dq(il);
 	deque<int> tmp;
-	tmp = dq;
+	tmp = std::move(dq);
 	auto it = tmp.begin();
+	auto it1 = il.begin();
 
-	for (size_t i = 0;i < dq.size(); ++i, ++it) {
-		ASSERT_EQ(*it, dq.at(i));
+	ASSERT_EQ(tmp.size(), il.size());
+	while (it != tmp.begin()) {
+		ASSERT_EQ(*it, *it1);
+		++it, ++it1;
 	}
+
 	ASSERT_EQ(dq.size(), 0);
 }
 
@@ -184,10 +192,10 @@ TEST(deque, iterator) {
 	ASSERT_EQ(*tmp, 4);
 
 	tmp = it++;
-	ASSERT_EQ(*tmp, 2);
+	ASSERT_EQ(*tmp, 1);
 
 	tmp = it--;
-	ASSERT_EQ(*tmp, 1);
+	ASSERT_EQ(*tmp, 2);
 
 	it = dq.begin();
 	auto ed = dq.end();
@@ -213,10 +221,10 @@ TEST(deque, const_iterator) {
 	ASSERT_EQ(*tmp, 4);
 
 	tmp = it++;
-	ASSERT_EQ(*tmp, 2);
+	ASSERT_EQ(*tmp, 1);
 
 	tmp = it--;
-	ASSERT_EQ(*tmp, 1);
+	ASSERT_EQ(*tmp, 2);
 
 	it = dq.cbegin();
 	auto ed = dq.cend();
@@ -239,13 +247,13 @@ TEST(deque, reverse_iterator) {
 	ASSERT_EQ(*it, 5);
 
 	auto tmp = it + 3;
-	ASSERT_EQ(*tmp, 3);
+	ASSERT_EQ(*tmp, 2);
 
 	tmp = it++;
-	ASSERT_EQ(*tmp, 4);
+	ASSERT_EQ(*tmp, 5);
 
 	tmp = it--;
-	ASSERT_EQ(*tmp, 5);
+	ASSERT_EQ(*tmp, 4);
 
 	it = dq.rbegin();
 	auto ed = dq.rend();
@@ -268,13 +276,13 @@ TEST(deque, const_reverse_iterator) {
 	ASSERT_EQ(*it, 5);
 
 	auto tmp = it + 3;
-	ASSERT_EQ(*tmp, 3);
+	ASSERT_EQ(*tmp, 2);
 
 	tmp = it++;
-	ASSERT_EQ(*tmp, 4);
+	ASSERT_EQ(*tmp, 5);
 
 	tmp = it--;
-	ASSERT_EQ(*tmp, 5);
+	ASSERT_EQ(*tmp, 4);
 
 	it = dq.crbegin();
 	auto ed = dq.crend();
@@ -520,16 +528,15 @@ TEST(deuqe, resize_1) {
 	ASSERT_EQ(dq.size(), 2000);
 }
 
-// TODO
 TEST(deuqe, resize_2) {
-	deque<int> dq(1000);
+	deque<int> dq(1000, 1);
 
 	dq.resize(1000, 12);
 	ASSERT_EQ(dq.size(), 1000);
 
 	auto it = dq.begin();
 	while (it != dq.end()) {
-		ASSERT_EQ(*it, 12);
+		ASSERT_EQ(*it, 1);
 		++it;
 	}
 
@@ -539,7 +546,7 @@ TEST(deuqe, resize_2) {
 
 	it = dq.begin();
 	while (it != dq.end()) {
-		ASSERT_EQ(*it, 13);
+		ASSERT_EQ(*it, 1);
 		++it;
 	}
 
@@ -548,7 +555,7 @@ TEST(deuqe, resize_2) {
 
 	it = dq.begin();
 	while (it != dq.begin() + 500) {
-		ASSERT_EQ(*it, 13);
+		ASSERT_EQ(*it, 1);
 		++it;
 	}
 

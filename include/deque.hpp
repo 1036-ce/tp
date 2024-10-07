@@ -759,7 +759,7 @@ public:
 		} else {
 			deallocate_node(impl.finish.first);
 			impl.finish.set_node(impl.finish.node - 1);
-			impl.finish.cur = impl.finish.last;
+			impl.finish.cur = impl.finish.last - 1;
 			T_alloc_traits::destroy(impl, impl.finish.first);
 		}
 	}
@@ -864,11 +864,11 @@ private:
 		}
 	}
 
-	void destroy_elem(iterator &pos) {
-		T_alloc_traits::destroy(impl, pos.operator->());
+	void destroy_elem(iterator pos) {
+		T_alloc_traits::destroy(impl, pos.cur);
 	}
 
-	void destroy_elems(const iterator &first, const iterator &last) {
+	void destroy_elems(iterator first, iterator last) {
 		for (auto it = first; it != last; ++it)
 			destroy_elem(it);
 	}
@@ -913,7 +913,7 @@ private:
 	}
 
 	void reserve_elems_at_back(size_type n) {
-		size_type free_elems_cnt = impl.finish.last - impl.finish.cur;
+		size_type free_elems_cnt = impl.finish.last - impl.finish.cur - 1;
 		if (free_elems_cnt < n)
 			new_elems_at_back(n - free_elems_cnt);
 	}

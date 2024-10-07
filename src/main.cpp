@@ -13,8 +13,11 @@ struct Data {
 };
 
 int main() {
-	deque<int> dq{1,2,3,4};
-	auto it1 = dq.rend();
-	auto it2 = dq.rbegin();
-	std::cout << (it1 - it2) << std::endl;
+	deque<int> dq(5000);
+
+	int a = 12;
+	for (size_t i = 0; i < 8; ++i)
+		dq.erase(dq.begin() + static_cast<size_t>(dq.size() * 0.7));
+	dq.erase(dq.begin() + static_cast<size_t>(dq.size() * 0.7));
+	a = 3;
 }
