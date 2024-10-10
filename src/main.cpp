@@ -1,6 +1,6 @@
 #include <cassert>
-#include <deque.hpp>
 #include <iostream>
+#include <list.hpp>
 
 struct Data {
 	Data() { std::cout << "Data()" << std::endl; }
@@ -12,12 +12,38 @@ struct Data {
 	~Data() { std::cout << "~Data()" << std::endl; }
 };
 
-int main() {
-	deque<int> dq(5000);
+inline auto inc_iter(list<int>::iterator it, std::size_t num)-> decltype(it) {
+	while (num--)
+		++it;
+	return it;
+}
 
-	int a = 12;
-	for (size_t i = 0; i < 8; ++i)
-		dq.erase(dq.begin() + static_cast<size_t>(dq.size() * 0.7));
-	dq.erase(dq.begin() + static_cast<size_t>(dq.size() * 0.7));
-	a = 3;
+inline auto dec_iter(list<int>::iterator it, std::size_t num) -> decltype(it) {
+	while (num--)
+		--it;
+	return it;
+}
+
+int main() {
+	std::initializer_list<int> il1{1,2,3,4,5};
+	std::initializer_list<int> il2{1,2,3,4,5};
+	list<int> lt(il1);
+
+	auto it = lt.begin();
+	lt.emplace(it, 9);
+
+	it = inc_iter(lt.begin(), 2);
+	lt.emplace(it, 9);
+
+	it = inc_iter(lt.begin(), 4);
+	lt.emplace(it, 9);
+
+	it = lt.end();
+	lt.emplace(it, 9);
+
+	it = lt.begin();
+	while (it != lt.end()) {
+		std::cout << *it << std::endl;
+		++it;
+	}
 }

@@ -6,6 +6,7 @@
 #include "test_array.hpp"
 #include "test_vector.hpp"
 #include "test_deque.hpp"
+#include "test_list.hpp"
 
 int main(int argc, char **argv) {
 	testing::InitGoogleTest(&argc, argv);
