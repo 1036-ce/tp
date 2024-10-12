@@ -7,7 +7,6 @@ namespace tp{
 template <typename T>
 concept is_iterator = requires(T a, T b) {
 	*a;
-	a - b;
 	++a;
 };
 

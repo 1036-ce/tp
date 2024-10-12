@@ -45,6 +45,8 @@ struct list_node_base {
 	}
 
 	void unhook() {
+		this->_prev->_next = this->_next;
+		this->_next->_prev = this->_prev;
 	}
 };
 
@@ -187,7 +189,13 @@ template <typename T> struct list_const_iterator {
 		return (lhs.node == rhs.node);
 	}
 
-	list_node_base *node;
+	iterator remove_const() {
+		return iterator(const_cast<list_node_base*>(node));
+	} 
+
+	// TODO
+	// should be : `const list_node_base *node`
+	const list_node_base *node;
 };
 
 template <typename T, typename Alloc> class list_base {
@@ -442,10 +450,59 @@ public:
 
 	size_type size() const { return base::get_size(); }
 
+	void clear() {
+		base::clear();
+		base::init();
+	}
+
+	iterator insert(const_iterator pos, const T& value) {
+		return emplace(pos, value);
+	}
+
+	iterator insert(const_iterator pos, T&& value) {
+		return emplace(pos, std::move(value));
+	}
+
+	iterator insert(const_iterator pos, size_type count, const T& value) {
+		iterator ret;
+		while (count--)
+			ret = emplace(pos, value);
+		return ret;
+	}
+
+	template <typename InputIt>
+		requires tp::is_iterator<InputIt>
+	iterator insert(const_iterator pos, InputIt first, InputIt last) {
+		auto it = first;
+		iterator ret;
+		while (it != last) {
+			ret = emplace(pos, *it);
+			++it;
+		}
+		return ret;
+	}
+
+	iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
+		return insert(pos, ilist.begin(), ilist.end());
+	}
+
+	iterator erase(const_iterator pos) {
+		iterator ret(pos.node->_next);
+		erase_aux(pos.remove_const());
+		return ret;
+	}
+
+	iterator erase(const_iterator first, const_iterator last) {
+		while (first != last) {
+			first = erase(first);
+		}
+		return last.remove_const();
+	}
+
 	template <typename... Args>
 	iterator emplace(const_iterator pos, Args &&...args) {
 		Node *node = create_node(std::forward<Args>(args)...);
-		node->hook(pos.node);
+		node->hook(pos.remove_const().node);
 		base::inc_size(1);
 		return iterator(node);
 	}
@@ -466,7 +523,42 @@ public:
 		return *node->ptr();
 	}
 
+	void pop_back() {
+		erase_aux(--end());
+	}
+
+	void push_front(const T &value) {
+		Node *node = create_node(value);
+		insert_at_begin(node);
+	}
+
+	void push_front(T&& value) {
+		Node *node = create_node(value);
+		insert_at_begin(node);
+	}
+
+	template <typename... Args>
+		reference emplace_front(Args&&... args) {
+			Node *node = create_node(std::forward<Args>(args)...);
+			insert_at_begin(node);
+			return *node->ptr();
+		}
+
+	void pop_front() {
+		erase_aux(begin());
+	}
+
 private:
+	void insert_at_begin(Node *node) {
+		Node *first = static_cast<Node*>(impl.header._next);
+		node->_prev = &(impl.header);
+		node->_next = first;
+
+		first->_prev = node;
+		impl.header._next = node;
+		base::inc_size(1);
+	}
+
 	void insert_at_end(Node *node) {
 		Node *last  = static_cast<Node *>(impl.header._prev);
 		node->_next = &(impl.header);
@@ -486,5 +578,13 @@ private:
 			insert_at_end(create_node(*it));
 			++it;
 		}
+	}
+
+	void erase_aux(iterator pos) {
+		base::dec_size(1);
+		pos.node->unhook();
+		Node *node = static_cast<Node*>(pos.node);
+		Node_alloc_traits::destroy(get_Node_allocator(), node->ptr());
+		deallocate_node(node);
 	}
 };
