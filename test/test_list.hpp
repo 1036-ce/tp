@@ -242,3 +242,94 @@ TEST(list, pop_front) {
 		++it, ++it1;
 	}
 }
+
+TEST(list, resize_1) {
+	list<int> lt1{1, 2, 3, 4};
+	std::initializer_list<int> t1{1,2};
+
+	auto it = lt1.begin();
+	auto it1 = t1.begin();
+
+	lt1.resize(2);
+	while (it != lt1.end()) {
+		ASSERT_EQ(*it, *it1);
+		++it, ++it1;
+	}
+
+	list<int> lt2{1, 2, 3, 4};
+	std::initializer_list<int> t2{1,2,3,4};
+
+	it = lt2.begin();
+	it1 = t2.begin();
+
+	lt2.resize(4);
+	while (it != lt2.end()) {
+		ASSERT_EQ(*it, *it1);
+		++it, ++it1;
+	}
+
+	list<int> lt3{1, 2, 3, 4};
+	std::initializer_list<int> t3{1,2,3,4,0,0};
+
+	it = lt3.begin();
+	it1 = t3.begin();
+
+	lt3.resize(6);
+	while (it != lt3.end()) {
+		ASSERT_EQ(*it, *it1);
+		++it, ++it1;
+	}
+}
+
+TEST(list, resize_2) {
+	list<int> lt1{1, 2, 3, 4};
+	std::initializer_list<int> t1{1,2};
+
+	auto it = lt1.begin();
+	auto it1 = t1.begin();
+
+	lt1.resize(2, 9);
+	while (it != lt1.end()) {
+		ASSERT_EQ(*it, *it1);
+		++it, ++it1;
+	}
+
+	list<int> lt2{1, 2, 3, 4};
+	std::initializer_list<int> t2{1,2,3,4};
+
+	it = lt2.begin();
+	it1 = t2.begin();
+
+	lt2.resize(4,9);
+	while (it != lt2.end()) {
+		ASSERT_EQ(*it, *it1);
+		++it, ++it1;
+	}
+
+	list<int> lt3{1, 2, 3, 4};
+	std::initializer_list<int> t3{1,2,3,4,9,9};
+
+	it = lt3.begin();
+	it1 = t3.begin();
+
+	lt3.resize(6, 9);
+	while (it != lt3.end()) {
+		ASSERT_EQ(*it, *it1);
+		++it, ++it1;
+	}
+}
+
+TEST(list, swap) {
+	list<int> lt1{1, 2, 3, 4};
+	list<int> lt2{4,3,2,1,4,5,6,1,2,12,};
+	std::initializer_list<int> target{4,3,2,1,4,5,6,1,2,12};
+
+	lt1.swap(lt2);
+
+	auto it = lt1.begin();
+	auto it1 = target.begin();
+	while (it != lt1.end()) {
+		ASSERT_EQ(*it, *it1);
+		++it, ++it1;
+	}
+}

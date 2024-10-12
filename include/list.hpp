@@ -8,6 +8,19 @@ struct list_node_base {
 	list_node_base *_next;
 	list_node_base *_prev;
 
+	static void swap(list_node_base& lhs, list_node_base& rhs) {
+		lhs._prev->_next = lhs._next->_prev = &rhs;
+		rhs._prev->_next = rhs._next->_prev = &lhs;
+
+		list_node_base *tmp = lhs._prev;
+		lhs._prev = rhs._prev;
+		rhs._prev = tmp;
+
+		tmp = lhs._next;
+		lhs._next = rhs._next;
+		rhs._next = tmp;
+	}
+
 	// add [first, last) before this
 	void transfer(list_node_base *first, list_node_base *last) {
 		list_node_base *tmp = last->_prev;
@@ -547,6 +560,75 @@ public:
 	void pop_front() {
 		erase_aux(begin());
 	}
+
+	void resize(size_type count) {
+		size_type sz = size();
+		if (count == sz)
+			return;
+		else if (count < sz) {
+			while (count < sz) {
+				erase(--end());
+				--sz;
+			}
+		}
+		else {
+			while (count > sz) {
+				emplace_back();
+				++sz;
+			}
+		}
+	}
+
+	void resize(size_type count, const value_type& value) {
+		size_type sz = size();
+		if (count == sz)
+			return;
+		else if (count < sz) {
+			while (count < sz) {
+				erase(--end());
+				--sz;
+			}
+		}
+		else {
+			while (count > sz) {
+				emplace_back(value);
+				++sz;
+			}
+		}
+	}
+
+	void swap(list& other) {
+		using pocs = std::allocator_traits<allocator_type>::propagate_on_container_swap;
+
+		assert(pocs::value || get_allocator() == other.get_allocator());
+
+		list_node_base::swap(this->impl.header, other.impl.header);
+
+		size_type tmp = this->size();
+		this->set_size(other.size());
+		other.set_size(tmp);
+
+		if (pocs::value) {
+			using std::swap;
+			swap(get_Node_allocator(), other.get_Node_allocator());
+		}
+	}
+
+	void merge(list& other) {
+	}
+
+	void merge(list&& other) {
+	}
+
+	template <typename Compare>
+		void merge(list& other, Compare comp) {
+
+		}
+
+	template <typename Compare>
+		void merge(list&& other, Compare comp) {
+
+		}
 
 private:
 	void insert_at_begin(Node *node) {
